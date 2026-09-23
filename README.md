@@ -14,9 +14,18 @@
 - **可排序报告**：HTML 表格支持点击表头按任意列升降序排序，默认按最近 1月变化排序
 - **零第三方依赖**：仅用 Python 标准库（含自行实现的 xlsx 解析），`python main.py` 即可运行
 
+## 环境要求
+
+| 项 | 要求 |
+| --- | --- |
+| Python | **>= 3.8**（已在 CPython 3.13 / 3.14 实测通过；仅用到 f-string、dict 保序等 3.6/3.7 特性） |
+| 第三方包 | **无**。`requirements.txt` 仅含说明注释，`pip install -r requirements.txt` 是空操作 |
+| 其他 | 无需虚拟环境、无需 C 编译工具链；仅需可访问上交所/深交所/天天基金/中证/国证等公开接口 |
+
 ## 快速开始
 
 ```bash
+pip install -r requirements.txt   # 空操作，仅为兼容 CI：本项目无第三方依赖
 python main.py            # 更新数据 + 生成报告
 python main.py update     # 仅更新数据（本地缺失时自动去官网补全）
 python main.py index      # 仅修复跟踪指数映射（补缺失 + 纠正错误）
@@ -69,6 +78,7 @@ etf_share_monitor/
 ├── updater.py       # 数据更新：本地优先，缺失自动补全 + 指数映射纠错
 ├── report.py        # 按指数维度汇总计算 + HTML 报告渲染
 ├── main.py          # 命令行入口
+├── requirements.txt # 依赖清单（无第三方依赖，仅含说明注释）
 ├── data/
 │   ├── index_alias.json    # 手工别名映射（跟踪标的名称 → 指数代码）
 │   ├── index_dict.json     # 指数字典缓存（自动生成）
