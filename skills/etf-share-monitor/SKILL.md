@@ -11,7 +11,8 @@ agent_created: true
 按**跟踪指数代码**维度汇总，输出可排序 HTML 报告（1日/1周/1月/3月/6月变化）。
 
 ## 现成工程
-`<workspace>/etf_share_monitor/`：`config.py` `storage.py` `datasource.py` `index_dict.py` `updater.py` `report.py` `main.py` `data/index_alias.json`
+`<workspace>/etf_share_monitor/`：`config.py` `storage.py` `datasource.py` `index_dict.py` `updater.py` `report.py` `main.py` `requirements.txt` `data/index_alias.json`
+**依赖为 0**：纯标准库实现（`urllib` 请求 / `zipfile`+`ElementTree` 解析 xlsx / `sqlite3` 存储 / `concurrent.futures` 并发），`requirements.txt` 只有注释。新增功能时不要引入第三方包，否则会破坏这一约束。Python >= 3.8。
 本 skill 的副本随工程一起维护在仓库 `skills/etf-share-monitor/SKILL.md`：
 https://github.com/yucl80/etf_share_monitor （改动后记得同步两边）
 用法：`python main.py`（更新+报告）/ `update`（仅更新份额+映射）/ `index`（仅修复跟踪指数映射：补缺失+纠错）/ `report`
