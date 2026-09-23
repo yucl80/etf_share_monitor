@@ -39,6 +39,10 @@ def init_db():
             PRIMARY KEY (code, date)
         );
         CREATE INDEX IF NOT EXISTS idx_shares_date ON shares_daily(date);
+        CREATE TABLE IF NOT EXISTS run_state (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        );
         """
     )
     # 迁移：记录指数代码的来源，便于区分「交易所官方映射」与「名称解析结果」
@@ -115,6 +119,38 @@ def get_all_shares():
     for d, code, s in rows:
         out.setdefault(code, []).append((d, s))
     return out
+
+
+def latest_share_date():
+    """本地份额数据中最新的一条日期（无数据时返回 None）。"""
+    c = conn()
+    row = c.execute("SELECT MAX(date) FROM shares_daily").fetchone()
+    return row[0] if row else None
+
+
+# ---- 运行状态（记录上次成功抓取/生成报告的时间与数据版本，用于避免重复抓取）----
+
+def set_states(mapping):
+    c = conn()
+    c.executemany(
+        """INSERT INTO run_state(key, value) VALUES(?,?)
+           ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+        list(mapping.items()),
+    )
+    c.commit()
+
+
+def set_state(key, value):
+    set_states({key: value})
+
+
+def get_states():
+    """返回 {key: value}（表不存在时返回空字典）。"""
+    c = conn()
+    try:
+        return {k: v for k, v in c.execute("SELECT key, value FROM run_state")}
+    except sqlite3.OperationalError:
+        return {}
 
 
 def today_str():

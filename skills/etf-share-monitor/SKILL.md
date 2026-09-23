@@ -15,8 +15,22 @@ agent_created: true
 **依赖为 0**：纯标准库实现（`urllib` 请求 / `zipfile`+`ElementTree` 解析 xlsx / `sqlite3` 存储 / `concurrent.futures` 并发），`requirements.txt` 只有注释。新增功能时不要引入第三方包，否则会破坏这一约束。Python >= 3.8。
 本 skill 的副本随工程一起维护在仓库 `skills/etf-share-monitor/SKILL.md`：
 https://github.com/yucl80/etf_share_monitor （改动后记得同步两边）
-用法：`python main.py`（更新+报告）/ `update`（仅更新份额+映射）/ `index`（仅修复跟踪指数映射：补缺失+纠错）/ `report`
-首跑约 2~10 分钟，增量运行 1~3 分钟（深市区间请求 + 沪市近两周逐日）。
+用法：
+- `python main.py`：**日常入口**，智能流程 —— 跳过重复抓取 → 报告缺失/过期才重建 → 自动打开报告
+- `python main.py update`：强制抓最新数据 + 重建报告
+- `python main.py report`：仅用本地数据重建报告（不打开）
+- `python main.py open`：仅打开已有报告
+- `python main.py index`：仅修复跟踪指数映射（补缺失 + 纠错）
+- 选项：`-f/--force`（忽略「今日已抓取」强制重抓）、`--no-open`（不自动打开，适合定时任务）
+
+**不重复抓取机制（`storage.run_state` 表）**：
+- `updater.run_update()` 每次结束把 `last_fetch_date` / `last_fetch_time` / `last_fetch_ok`（沪深核心数据都非空才为 1）/ `latest_snapshot` 写入 `run_state` 并返回摘要。
+- `main._skip_fetch_reason()` 决定跳过：①今日已抓且快照含今日 ②非工作日 ③未到 `config.DATA_READY_HOUR`(18时) 发布时点 ④今日已在发布后抓过。上午跑过、当晚再跑会自动补抓一次（A股份额日报多在晚间发布）。
+- 报告是否重建**不看文件 mtime**（SQLite WAL 模式下主库 mtime 滞后，不可靠），而是比对 `run_state.report_snapshot` 与 `storage.latest_share_date()`；本地无数据时保留旧报告，避免被空报告覆盖。
+- 打开报告：Windows 走 `os.startfile`，其他平台退回 `webbrowser`。
+- 幂等/容错要点：核心抓取失败（`ok=0`）不记为「今日已抓取」，下次自动重试；`run_update()` 返回 `{"ok", "szse_rows", "sse_rows", "latest_snapshot", "errors"}`。
+
+首跑约 2~10 分钟，真正触发抓取的增量运行 1~3 分钟（深市区间请求 + 沪市近两周逐日）；命中跳过逻辑时只需数秒。
 
 ## 数据源（关键：份额历史必须用交易所官方接口）
 

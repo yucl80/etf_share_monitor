@@ -14,6 +14,14 @@ import datasource as ds
 import storage
 from config import F10_WORKERS, META_REFRESH_DAYS, QUOTE_BATCH, SSE_PROBE_BACK_DAYS, SZSE_HISTORY_DAYS
 
+# 本轮抓取的失败项（供 run_update 汇总：核心数据全部拿到才算成功，才允许「今日不再重抓」）
+_ERRORS = []
+
+
+def _err(msg):
+    _ERRORS.append(msg)
+    print(f"  ! {msg}")
+
 
 def _last_quarter_end(today):
     """最近一个已结束的季度末日期（官方规模变动按季度披露）。"""
@@ -25,7 +33,10 @@ def _last_quarter_end(today):
 def update_exchange_official(etfs):
     """步骤 1+2：交易所官方份额（沪市日频 + 深市日频区间 + 深市拟合指数映射）。
 
-    返回 {code: (date, shares)}，即各 ETF 官方口径的最新快照。
+    返回 (official, stats)：
+      * official = {code: (date, shares)}，各 ETF 官方口径的最新快照；
+      * stats    = {"szse_rows": 深市入库条数, "sse_rows": 沪市入库条数}
+                   —— 两者均非 0 才视为本次核心数据抓取成功。
     """
     today = datetime.now()
     official = {}
@@ -35,7 +46,7 @@ def update_exchange_official(etfs):
     try:
         rows = ds.fetch_szse_scale(start, end)
     except Exception as e:  # noqa: BLE001
-        print(f"  ! 深交所规模接口失败: {e}")
+        _err(f"深交所规模接口失败: {e}")
         rows = []
     if rows:
         storage.upsert_shares_many([(code, date, shares, "szse") for date, code, _, shares in rows])
@@ -49,7 +60,7 @@ def update_exchange_official(etfs):
     try:
         sz_meta = ds.fetch_szse_etf_list()
     except Exception as e:  # noqa: BLE001
-        print(f"  ! 深交所ETF列表失败: {e}")
+        _err(f"深交所ETF列表失败: {e}")
     for code, info in sz_meta.items():
         if info.get("index_code"):
             storage.upsert_meta(code, info["name"], info.get("index_name"),
@@ -76,7 +87,7 @@ def update_exchange_official(etfs):
         try:
             data = ds.fetch_sse_shares(target)
         except Exception as e:  # noqa: BLE001
-            print(f"  ! 上交所份额接口失败({target}): {e}")
+            _err(f"上交所份额接口失败({target}): {e}")
             continue
         if data:
             _collect(target, target, data)
@@ -84,7 +95,7 @@ def update_exchange_official(etfs):
         try:
             date, data = ds.fetch_sse_nearest(target, max_back=SSE_PROBE_BACK_DAYS)
         except Exception as e:  # noqa: BLE001
-            print(f"  ! 上交所份额接口失败({target}): {e}")
+            _err(f"上交所份额接口失败({target}): {e}")
             continue
         if date:
             _collect(target, date, data)
@@ -94,7 +105,7 @@ def update_exchange_official(etfs):
           f"...{sorted(seen_dates)[-3:]}（月/季锚点 "
           + ", ".join(f"{k[5:]}→{v[5:]}" for k, v in resolved.items() if k in distant) + "）")
 
-    return official
+    return official, {"szse_rows": len(rows), "sse_rows": len(sse_rows)}
 
 
 def update_quote_fallback(etfs, official):
@@ -269,13 +280,39 @@ def fix_index_mappings():
 
 
 def run_update():
+    """抓取并补全数据，并把本次结果写入运行状态表。
+
+    返回摘要（供入口判断能否「今日不再重复抓取」）：
+      {"ok": bool, "szse_rows": int, "sse_rows": int,
+       "latest_snapshot": str|None, "errors": [str, ...]}
+      * ok=True 表示**核心数据**（沪深交易所日频份额）本轮均成功获取；
+      * 只有 ok=True 时，当日再次运行才会跳过网络抓取。
+    """
+    _ERRORS.clear()
     etfs = ds.fetch_etf_list()
     print(f"获取到全市场场内 ETF {len(etfs)} 只")
     _preload_index_dict()
-    official = update_exchange_official(etfs)
+    official, stats = update_exchange_official(etfs)
     update_quote_fallback(etfs, official)
     update_f10(etfs)
     correct_index_mappings()
+
+    latest = storage.latest_share_date()
+    ok = stats["szse_rows"] > 0 and stats["sse_rows"] > 0
+    now = datetime.now()
+    storage.set_states({
+        "last_fetch_date": now.strftime("%Y-%m-%d"),
+        "last_fetch_time": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "last_fetch_ok": "1" if ok else "0",
+        "latest_snapshot": latest or "",
+        "last_fetch_errors": str(len(_ERRORS)),
+    })
+    print(f"[数据抓取完成] 深市 {stats['szse_rows']} 条 / 沪市 {stats['sse_rows']} 条 | "
+          f"最新快照 {latest or '无'} | 核心数据{'成功' if ok else '失败'} | "
+          f"失败 {len(_ERRORS)} 项")
+    if not ok:
+        print("      ⚠ 核心数据未完整获取，本次不记录为「今日已抓取」，下次运行会重试")
+    return {"ok": ok, "latest_snapshot": latest, "errors": list(_ERRORS), **stats}
 
 
 def _preload_index_dict():

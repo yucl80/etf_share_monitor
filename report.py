@@ -7,6 +7,7 @@
 """
 import html
 import json
+import os
 from datetime import datetime
 
 import storage
@@ -571,7 +572,31 @@ def render_html(rows, unmatched, total_etf, cur_date):
     return doc
 
 
+def report_exists():
+    return os.path.exists(REPORT_PATH)
+
+
+def report_needs_rebuild():
+    """报告是否需要重建：返回 (bool, 原因)。
+
+    判定依据是「报告生成时所依据的数据快照」与「本地当前数据快照」是否一致，
+    而不是文件时间戳（SQLite 处于 WAL 模式，主库文件 mtime 会滞后，不可靠）。
+    """
+    if not report_exists():
+        return True, "报告尚未生成"
+    storage.init_db()
+    built = (storage.get_states().get("report_snapshot") or "")
+    current = storage.latest_share_date() or ""
+    if not current:
+        # 本地没有任何份额数据（例如库被清空）——保留已有报告，避免用空报告覆盖
+        return False, "本地无份额数据，保留现有报告"
+    if built != current:
+        return True, f"本地份额数据已变化（快照 {built or '空'} → {current}）"
+    return False, f"报告已是最新（数据快照 {current}）"
+
+
 def run_report():
+    storage.init_db()
     etf_changes = compute_etf_changes()
     rows = aggregate_by_index(etf_changes)
     unmatched = [(c, v) for c, v in etf_changes.items() if not v["index_code"]]
@@ -580,11 +605,15 @@ def run_report():
     doc = render_html(rows, unmatched, len(etf_changes), cur_date)
     with open(REPORT_PATH, "w", encoding="utf-8") as f:
         f.write(doc)
+    # 记录本次报告所依据的数据快照，供下次运行时判断是否需要重建
+    storage.set_states({
+        "report_built_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "report_snapshot": storage.latest_share_date() or "",
+    })
     print(f"报告已生成: {REPORT_PATH}（指数维度 {len(rows)} 个，覆盖 ETF {len(etf_changes)} 只，"
           f"未识别跟踪指数 {len(unmatched)} 只）")
     return REPORT_PATH
 
 
 if __name__ == "__main__":
-    storage.init_db()
     run_report()
