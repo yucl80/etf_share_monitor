@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 本地数据库与运行缓存（可由官网接口重新生成）
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/index_dict.json
+
+# 报告产物
+output/*.html
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
