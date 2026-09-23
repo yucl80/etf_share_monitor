@@ -73,9 +73,24 @@ etf_share_monitor/
 │   ├── index_alias.json    # 手工别名映射（跟踪标的名称 → 指数代码）
 │   ├── index_dict.json     # 指数字典缓存（自动生成）
 │   └── etf_shares.db       # 本地 SQLite 库（自动生成）
+├── skills/
+│   └── etf-share-monitor/
+│       └── SKILL.md        # Agent Skill：数据源/接口/坑位清单（见下节）
 └── output/
     └── etf_index_share_report.html   # 报告产物
 ```
+
+## Agent Skill
+
+`skills/etf-share-monitor/SKILL.md` 是本工程的配套 Agent Skill，把踩过的坑固化成了可复用文档：
+
+- **全部数据源接口清单**：精确 URL、参数、请求头、返回格式与字段映射（含「必须 POST」「仅支持 xlsx」「限流极严」等关键约束）
+- **采集策略**：沪市逐日回溯 vs 深市区间请求，以及各窗口基期的容限规则
+- **跟踪指数映射的五级优先级**与名称归一化规则、补全与纠错必须分开的原因（同名不同机构指数）
+- **已知坑位**：入库元组顺序、货币型代码过滤、f-string 内嵌 JS 的转义、东财接口限流退避等
+- **浏览器端验证方法**：用 `playwright-core` + 本地缓存的 chromium 无头实例做交互断言
+
+安装到 WorkBuddy：把 `skills/etf-share-monitor/` 目录放到 `~/.workbuddy/skills/` 下即可（用户级），或放到项目的 `.workbuddy/skills/` 下（项目级）。
 
 ## 统计口径说明
 
