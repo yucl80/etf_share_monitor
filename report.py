@@ -310,7 +310,7 @@ _JS = r"""
     });
     rows.forEach(function (tr) { tb.appendChild(tr); });
   }
-  var curKey = "1m", curDir = -1;
+  var curKey = "1d", curDir = -1;
   function paint() {
     for (var i = 0; i < ths.length; i++) {
       var ar = ths[i].querySelector(".arrow");
@@ -472,9 +472,9 @@ def render_html(rows, unmatched, total_etf, cur_date):
     keys = [k for k, _, _, _ in WINDOWS]
     labels = {k: lb for k, lb, _, _ in WINDOWS}
 
-    # 默认按最近1月变化降序
+    # 默认按最近1日变化降序
     def sort_key(r):
-        w = r.get("1m")
+        w = r.get("1d")
         return w["delta"] if w else float("-inf")
     rows = sorted(rows, key=sort_key, reverse=True)
 

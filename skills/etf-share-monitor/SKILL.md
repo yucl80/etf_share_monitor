@@ -86,7 +86,7 @@ https://github.com/yucl80/etf_share_monitor （改动后记得同步两边）
 
 ## 输出
 `output/etf_index_share_report.html`：列 = 指数代码、指数名称、ETF数量、份额总数(亿份)、最近1日/1周/1月/3月/6月变化（变化量+百分比+基期日期，title 显示偏差天数）；
-点击表头排序（默认按最近1月降序，空值恒排末尾）；**份额增加红色、减少绿色**（A股惯例）。
+点击表头排序（默认按最近1日降序，空值恒排末尾）；**份额增加红色、减少绿色**（A股惯例）。
 **点击任意指数行 → 弹出成分 ETF 明细弹窗**（代码/名称/份额总数/各窗口增减，可排序、底部合计行，Esc/遮罩/×关闭）。
 实现要点：明细数据以内嵌 `<script type="application/json">` 紧凑载荷传入前端（`report.build_detail_payload`；ETF 窗口基期与组内默认一致时存 `null` 不重复存储；`</` 需转义为 `<\/`）；CSS/JS 用普通字符串常量（`_CSS`/`_JS`）再经 f-string 插入，避免大括号转义地狱；数值排序读单元格 `data-v` 而非 innerText（千分位逗号曾致 parseFloat 解析错误）。
 浏览器端验证方法：`playwright-core` + 已缓存的 `ms-playwright/chromium_headless_shell-*`（`executablePath` 显式指定，版本不必严格匹配），断言排序/弹窗/勾稽合计/无 console error。
